@@ -1,0 +1,21 @@
+id,service,age,date_entree,stress_percu,satisfaction,teletravail,transport,commentaire
+1,Comptabilité,45,2010-05-15,Moyen,3,Non,Voiture,"Rien à signaler"
+2,Informatique,24,2022-09-01,Faible,5,Oui,Velo|Metro,"Super ambiance ! :)"
+3,RH,52,2005-01-20,Elevé,2,Oui,Voiture,"Charge de travail trop importante"
+4,Informatique,30,2018-03-12,Moyen,4,Oui,Metro,
+5,Logistique,19,2023-11-01,Faible,4,Non,Pied,""
+6,Comptabilité,,2015-06-30,Elevé,1,Non,Voiture,"Je veux changer de poste"
+7,RH,38,2019-02-14,NSP,3,Oui,Voiture|Train,
+8,Informatique,41,2012-10-22,Elevé,2,Oui,Voiture,"Conflit avec le manager"
+9,Logistique,55,2000-01-05,Faible,5,Non,Velo,"Tout va bien"
+10,Comptabilité,29,2020-01-01,Moyen,3,Non,Metro,"Pas de fenêtre dans le bureau"
+11,Direction,62,1995-05-12,Elevé,4,Oui,Voiture,""
+12,Informatique,22,2023-01-15,Faible,5,Oui,Pied|Velo,"On manque de café"
+13,RH,45,2010-05-15,Moyen,3,Oui,Metro,
+14,Logistique,33,2016-07-20,Elevé,1,Non,Voiture,"Horaires difficiles"
+15,Comptabilité,50,2008-09-01,NSP,3,Non,Train,""
+16,Direction,48,2011-11-11,Moyen,4,Oui,Voiture|Avion,"Déplacements fréquents"
+17,Informatique,,2021-04-01,Faible,4,Oui,Velo,
+18,RH,27,2020-03-16,Elevé,2,Non,Metro|Bus,"Salaire trop bas"
+19,Logistique,60,1998-12-01,Moyen,5,Non,Voiture,"Bientôt la retraite"
+20,Comptabilité,35,2017-08-25,Faible,4,Non,Pied,"Equipe sympa"

@@ -1,0 +1,46 @@
+---
+title: "Analyse des réponses du questionnaire"
+author: "Virgile"
+date: "2025-12-01"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, include=FALSE}
+# Ce chunk charge les bibliothèques et les fonctions. echo=FALSE fait en sorte de ne pas avoir le code généré dans le rapport
+library(tidyverse)
+library(viridis)
+library(knitr) 
+library(dplyr)
+library(tidyr)
+library(ggplot2) 
+# data <- read.csv2("input/Questionnaire.csv", header = TRUE, fileEncoding = "ISO-8859-1",colClasses = typevar) # encodage windows nécessaire
+data <- read.delim("input/data_test.csv", header = TRUE, sep = ",", fileEncoding = "UTF-8")
+source("script/Fonction_detect_var_type.R")
+source("script/Fonction_compt_des_rep.R")
+source("script/Fonction_tableau_d_effectif.R")
+source("script/Fonction_graph_en_bar.R")
+source("script/Fonction_graph_camembert.R")
+```
+
+## Analyse univarié
+
+```{r, echo=FALSE, results='asis'}
+for(i in names(data)) {
+  if(is.character(data[[i]])) {
+      
+      cat("\n### Analyse de la variable : ", i, "\n\n")
+      
+      # Tableau
+      tab_eff <- tableau_d_effectif(data[[i]], i)
+      print(knitr::kable(tab_eff))
+      
+       # Graphiques
+      print(graph_en_bar(data[[i]], i))
+      print(graph_camembert(data[[i]], i))
+      
+      cat("\n\n***\n\n")
+    
+  }
+}
