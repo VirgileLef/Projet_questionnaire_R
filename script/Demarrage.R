@@ -16,8 +16,7 @@ library(tidyr)    # v1.3.1
 library(ggplot2)  # v3.5.2
 library(viridis)  # v0.6.5 
 
-
-data <- read.delim("input/data_test.csv", header = TRUE, sep = ",", fileEncoding = "UTF-8")
+lancement <- function(data) {
 
   #Visualisation des questionnaires et réponses du questionnaire
   head(data)
@@ -126,7 +125,7 @@ data <- read.delim("input/data_test.csv", header = TRUE, sep = ",", fileEncoding
     # Nommer la nouvelle ligne
     rownames(matrice_cramer_v)[nrow(matrice_cramer_v)] <- i
   }
-
+}
 
 
 

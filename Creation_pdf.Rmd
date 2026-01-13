@@ -7,7 +7,7 @@ output:
     df_print: paged
 ---
 
-```{r, include=FALSE}
+```{r, warning=FALSE, include=FALSE}
 # Ce chunk charge les bibliothèques et les fonctions. echo=FALSE fait en sorte de ne pas avoir le code généré dans le rapport
 library(tidyverse)
 library(viridis)
@@ -15,8 +15,22 @@ library(knitr)
 library(dplyr)
 library(tidyr)
 library(ggplot2) 
-# data <- read.csv2("input/Questionnaire.csv", header = TRUE, fileEncoding = "ISO-8859-1",colClasses = typevar) # encodage windows nécessaire
-data <- read.delim("input/data_test.csv", header = TRUE, sep = ",", fileEncoding = "UTF-8")
+
+# Lecture du fichier de configuration Yaml
+#config <- yaml::read_yaml("input/config_questionnaire.yaml")
+config <- yaml::read_yaml("input/config_questionnaire.yaml")
+# Lecture des données
+data <- read.csv2(file = config$files$input_data, fileEncoding = config$files$encoding, sep = config$files$separator, check.names = FALSE)
+
+#Transforme les variables de type date traité par R en variable charactere en véritable variable de type date
+for (col_conf in config$columns) {
+  if (col_conf$type == "date") {
+    col_name <- col_conf$name
+    data[[col_name]] <- as.Date(data[[col_name]], format = col_conf$format)
+  }
+}
+source("script/Fonction_graph_histogramme.R")
+source("script/Fonction_graph_courbe.R")
 source("script/Fonction_detect_var_type.R")
 source("script/Fonction_compt_des_rep.R")
 source("script/Fonction_tableau_d_effectif.R")
@@ -26,21 +40,41 @@ source("script/Fonction_graph_camembert.R")
 
 ## Analyse univarié
 
-```{r, echo=FALSE, results='asis'}
+```{r, echo=FALSE, warning=FALSE, results='asis'}
 for(i in names(data)) {
   if(is.character(data[[i]])) {
-      
-      cat("\n### Analyse de la variable : ", i, "\n\n")
+      cat("\n### Analyse de la variable : ", i, "(Charactere)", "\n\n")
       
       # Tableau
       tab_eff <- tableau_d_effectif(data[[i]], i)
       print(knitr::kable(tab_eff))
       
-       # Graphiques
+      # Graphiques
       print(graph_en_bar(data[[i]], i))
       print(graph_camembert(data[[i]], i))
       
       cat("\n\n***\n\n")
+  }
+  
+  if(inherits(data[[i]], "Date")) {
+      cat("\n### Analyse de la variable : ", i, "(Date)", "\n\n")
     
+      # Graphiques 
+      print(graph_courbe(data[[i]], i))
+      
+      cat("\n\n***\n\n")
+  }
+  
+  if(is.numeric(data[[i]]) && !inherits(data[[i]], "Date")) {
+  
+      cat("\n### Analyse de la variable : ", i, "(Numérique)", "\n\n")
+      
+      stats <- summary(data[[i]])
+      print(knitr::kable(t(as.matrix(stats)), caption = "Résumé statistique"))
+      
+      print(graph_histogramme(data[[i]], i))
+      
+      cat("\n\n***\n\n")
   }
 }
+```

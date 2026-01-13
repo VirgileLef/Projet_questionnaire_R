@@ -1,0 +1,37 @@
+# Configuration du projet
+files:
+  input_data: "input/data_test.csv"
+  output_report: "output/rapport_analyse.pdf"
+  encoding: "UTF-8"
+  separator: "," 
+
+report:
+  title: "Rapport d'Analyse Questionnaire"
+  author: "Virgile"
+  date: true 
+
+columns:
+  - name: "id"
+    type: "id"
+
+  - name: "service"
+    type: "factor"
+    label: "Service d'appartenance"
+
+  - name: "age"
+    type: "numeric"
+    label: "Âge"
+    
+  - name: "date_entree"
+    type: "date"
+    label: "Date d'arrivée"
+    format: "%Y-%m-%d"
+
+  - name: "stress_percu"
+    type: "ordinal"
+    label: "Niveau de stress"
+    levels: ["Faible", "Moyen", "Elevé"]
+    na_values: ["NSP"]
+
+  - name: "satisfaction"
+    type: "numeric"

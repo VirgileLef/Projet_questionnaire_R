@@ -1,0 +1,114 @@
+# Fichier de configuration pour les données du questionnaire étudiant
+
+# 1. Paramètres des fichiers
+files:
+  input_data: "input/Questionnaire.csv"
+  output_report: "output/rapport_analyse.pdf"
+  encoding: "ISO-8859-1" 
+  separator: ";"
+# 2. Paramètres du rapport
+report:
+  title: "Analyse des Conditions de Travail et des Risques Psychosociaux"
+  author: "Équipe Analyse"
+  date: true
+
+# 3. Métadonnées des colonnes
+# Utilisation d'un alias pour les échelles de Likert récurrentes
+.likert_anchors:
+  standard: &likert_levels
+    type: "ordinal"
+    levels:
+      - "Jamais / Non"
+      - "Parfois / Plutôt non"
+      - "Souvent / Plutôt oui"
+      - "Toujours / Oui"
+    na_values: ["Ne souhaite pas répondre / Sans objet", ""]
+
+columns:
+  # QUetsions 1 à 26
+  # --- BLOC 1 : Organisation et Rythme ---
+  - { name: "1. Êtes-vous soumis À  des contraintes de rythmes élevés ?", <<: *likert_levels }
+  - { name: "2. Vos objectifs sont-ils clairement définis ?", <<: *likert_levels }
+  - { name: "3. Les objectifs fixés sont-ils compatibles avec les moyens et responsabilités qui vous sont alloués pour les atteindre ?", <<: *likert_levels }
+  - { name: "4. Recevez-vous des instructions, des ordres ou demandes qui peuvent Àªtre contradictoires entre eux ?", <<: *likert_levels }
+  - { name: "5. Êtes-vous amené À  changer de tâches, de postes ou de fonctions À  l'improviste et/ou sans concertation pour répondre aux contraintes du moment ?", <<: *likert_levels }
+  - { name: "6. Êtes-vous fréquemment interrompu au cours de votre travail par des tâches non prévues ?", <<: *likert_levels }
+  - { name: "7. Exercez-vous des activités qui nécessitent une attention soutenue ou une vigilance permanente ?", <<: *likert_levels }
+  
+  # --- BLOC 2 : Temps de travail ---
+  - { name: "8. Vous arrive-t-il de travailler plus de 45 heures par semaine ?", <<: *likert_levels }
+  - { name: "9. Êtes-vous soumis À  des horaires de nuit, alternants ou décalés OU amené À  travailler en dehors des heures normales ouvrées ?", <<: *likert_levels }
+  - { name: "10. Êtes-vous sollicité en dehors des heures normales ouvrées ?", <<: *likert_levels }
+  - { name: "11. Connaissez-vous suffisamment À  l'avance vos horaires de travail ou les changements éventuels de votre planning de travail ?", <<: *likert_levels }
+  - { name: "12. L'université vous permet-elle de concilier vie professionnelle et vie personnelle ?", <<: *likert_levels }
+
+  # --- BLOC 3 : Relations et Émotions ---
+  - { name: "13. Êtes-vous confronté À  des situations de tension (avec des étudiants, des partenaires extérieurs?) ?", <<: *likert_levels }
+  - { name: "14. Dans le cadre de votre activité professionnelle, Àªtes-vous amené À  devoir traiter la situation de personnes en souffrance (physique, psychologique ou sociale) ?", <<: *likert_levels }
+  - { name: "15. Dans votre travail, devez-vous \"\"faire bonne figure\"\" en toutes circonstances ?", <<: *likert_levels }
+  - { name: "16. Avez-vous des marges de manœuvre (possibilité d'organiser soi-même son travail, de prendre des initiatives, de participer aux décisions relatives À  son travail) ?", <<: *likert_levels }
+  - { name: "17. Pouvez-vous interrompre momentanément votre travail quand vous le souhaitez ?", <<: *likert_levels }
+  - { name: "18. Pouvez-vous utiliser vos compétences professionnelles et en acquérir de nouvelles ?", <<: *likert_levels }
+  - { name: "19. Les relations entre collègues sont-elles bonnes ?", <<: *likert_levels }
+
+  # --- BLOC 4 : Soutien et Reconnaissance ---
+  - { name: "20. Recevez-vous un soutien de la part de votre hiérarchie en cas de difficulté ? [surtout pour personnel BIATSS] Supérieur direct", <<: *likert_levels }
+  - { name: "20. Recevez-vous un soutien de la part de votre hiérarchie en cas de difficulté ? [surtout pour personnel BIATSS] Direction de votre service", <<: *likert_levels }
+  - { name: "20. Recevez-vous un soutien de la part de votre hiérarchie en cas de difficulté ? [surtout pour personnel enseignant et enseignant-chercheur] Directeur de l'UFR ou de l'école / département", <<: *likert_levels }
+  - { name: "20. Recevez-vous un soutien de la part de votre hiérarchie en cas de difficulté ? [surtout pour personnel enseignant et enseignant-chercheur] Responsable du laboratoire ou de l'unité de recherche", <<: *likert_levels }
+  - { name: "21. Recevez-vous des marques de reconnaissance de la part de votre hiérarchie ? [surtout pour personnel BIATSS] Supérieur direct", <<: *likert_levels }
+  - { name: "21. Recevez-vous des marques de reconnaissance de la part de votre hiérarchie ? [surtout pour personnel BIATSS] Direction de votre service", <<: *likert_levels }
+  - { name: "21. Recevez-vous des marques de reconnaissance de la part de votre hiérarchie ? [surtout pour personnel enseignant et enseignant-chercheur] Directeur de l'UFR ou de l'école / département", <<: *likert_levels }
+  - { name: "21. Recevez-vous des marques de reconnaissance de la part de votre hiérarchie ? [surtout pour personnel enseignant et enseignant-chercheur] Responsable du laboratoire ou de l'unité de recherche", <<: *likert_levels }
+  - { name: "22. Règne-t-il un climat de courtoisie et de respect sur votre lieu de travail ?", <<: *likert_levels }
+  - { name: "23. Considérez-vous que vous faites un travail de qualité ?", <<: *likert_levels }
+  - { name: "24. Estimez-vous en général que votre travail est reconnu comme utile ?", <<: *likert_levels }
+  - { name: "25. Êtes-vous confronté À  des incertitudes quant au maintien de votre activité (instabilité d'un financement, suppression de poste, etc.) ?", <<: *likert_levels }
+  - { name: "26. Les changements intervenant dans votre travail sont-ils suffisamment anticipés et expliqués ?", <<: *likert_levels }
+
+  # Question 27 à 32
+  # --- BLOC 5 : Santé et Signaux d'alerte ---
+  - name: "27. Avez-vous déjÀ  \"\"craqué\"\" sur votre lieu de travail ?"
+    type: "boolean"
+  
+  # Variables Symptômes (Cases à cocher représentées par "X" ou vide)
+  - { name: "28. Si oui, avez-vous déjÀ  : pleuré", type: "boolean" }
+  - { name: "28. Si oui, avez-vous déjÀ  : fait un malaise", type: "boolean" }
+  - { name: "28. Si oui, avez-vous déjÀ  : eu des propos violents", type: "boolean" }
+  - { name: "28. Si oui, avez-vous déjÀ  : eu des gestes violents", type: "boolean" }
+
+  - name: "29. Le travail a-t-il déjÀ  eu des conséquences négatives sur votre vie personnelle ?"
+    type: "ordinal"
+    levels: ["Jamais", "Quelques fois", "Régulièrement"]
+
+  # Intentions de départ
+  - { name: "31. Avez-vous atteint un niveau de saturation tel qu'au cours des 12 derniers mois : vous avez cherché À  changer de poste", type: "boolean" }
+  - { name: "31. Avez-vous atteint un niveau de saturation tel qu'au cours des 12 derniers mois : vous avez cherché À  quitter l'université", type: "boolean" }
+  - { name: "31. Avez-vous atteint un niveau de saturation tel qu'au cours des 12 derniers mois : vous avez pensé À  changer de métier", type: "boolean" }
+
+  # Question 33 à 41
+  # --- BLOC 6 : Profil (Démographie) ---
+  - name: "33. Vous Êtes..."
+    type: "factor"
+    label: "Genre"
+
+  - name: "34. Quel est votre poste ?"
+    type: "factor"
+  
+  - name: "35. Quel est votre statut ?"
+    type: "factor"
+
+  - name: "37. Sur quel site travaillez-vous ?"
+    type: "factor"
+
+  - name: "38. Vous avez..."
+    type: "ordinal"
+    label: "Tranche d'âge"
+    levels: ["Moins de 25 ans", "Entre 25 et 34 ans", "Entre 35 et 44 ans", "Entre 45 et 54 ans", "Entre 55 et 64 ans", "65 ans et plus"]
+
+  - name: "39. Vous exercez sur ce poste depuis..."
+    type: "ordinal"
+    levels: ["Moins d'un an", "Entre 1 et 2 ans", "de 2 À  5 ans", "de 5 À  10 ans", "de 10 À  20 ans", "Plus de 20 ans"]
+
+  - name: "40. Quel est votre niveau d'études ?"
+    type: "factor"

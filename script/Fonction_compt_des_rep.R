@@ -1,6 +1,6 @@
 compt_des_rep <- function(data) {
   
-  # Créer une copie du dataframe pour travailler
+  # Création d'une copie du dataframe pour travailler dessus
   data_integer <- data
   
   # Boucle sur toutes les colonnes du dataframe
@@ -10,12 +10,10 @@ compt_des_rep <- function(data) {
     # Tester si la variable est de type character
     if (is.character(data_integer[[col_name]]) || is.factor(data_integer[[col_name]])) {
       
-      #Identifier les modalités uniques et les trier (ordre alphabétique)
-      # Le tri est ce qui définit l'attribution du score (1, 2, 3, ...)
       modalities_sorted <- sort(unique(data_integer[[col_name]]))
       
       # Création d'un facteur ordonné
-      # On force l'ordre des niveaux basé sur le tri alphabétique
+      # On force l'ordre sur un tri alphabétique
       factor_ordered <- factor(
         data_integer[[col_name]],
         levels = modalities_sorted,
@@ -27,9 +25,7 @@ compt_des_rep <- function(data) {
       # le score 1 au premier niveau, 2 au second, et ainsi de suite.
       data_integer[[col_name]] <- as.numeric(factor_ordered)
       
-      #Les valeurs NA restent NA.
     }
-    # Les variables numériques sont conservées intactes par défaut.
   }
   
   # Retourner les data transformé
