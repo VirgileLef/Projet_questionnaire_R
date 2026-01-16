@@ -2,12 +2,15 @@
 title: "Analyse des réponses du questionnaire"
 author: "Virgile"
 date: "2025-12-01"
-output:
-  html_document:
-    df_print: paged
+output: 
+  pdf_document:
+    latex_engine: xelatex
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "output") })
 ---
 
 ```{r, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 # Ce chunk charge les bibliothèques et les fonctions. echo=FALSE fait en sorte de ne pas avoir le code généré dans le rapport
 library(tidyverse)
 library(viridis)
@@ -21,7 +24,20 @@ library(ggplot2)
 config <- yaml::read_yaml("input/config_questionnaire.yaml")
 # Lecture des données
 data <- read.csv2(file = config$files$input_data, fileEncoding = config$files$encoding, sep = config$files$separator, check.names = FALSE)
+clean_text <- function(x) {
+  x <- gsub('[\u0093\u0094\u201C\u201D]', '"', x) # Guillemets
+  x <- gsub('œ', 'oe', x)                        # Ligature œ
+  x <- iconv(x, to = "ASCII//TRANSLIT")          # Accents (é -> e)
+  x <- gsub('[^\x20-\x7E]', '', x)               # Supprime le reste (U+0093 etc)
+  return(x)
+}
 
+# 2. Appliquer aux noms de colonnes
+names(data) <- clean_text(names(data))
+
+# 3. Appliquer au contenu des colonnes de texte
+data <- data %>% 
+  mutate(across(where(is.character), clean_text))
 #Transforme les variables de type date traité par R en variable charactere en véritable variable de type date
 for (col_conf in config$columns) {
   if (col_conf$type == "date") {
@@ -29,6 +45,8 @@ for (col_conf in config$columns) {
     data[[col_name]] <- as.Date(data[[col_name]], format = col_conf$format)
   }
 }
+
+
 source("script/Fonction_graph_histogramme.R")
 source("script/Fonction_graph_courbe.R")
 source("script/Fonction_detect_var_type.R")
@@ -50,8 +68,8 @@ for(i in names(data)) {
       print(knitr::kable(tab_eff))
       
       # Graphiques
-      print(graph_en_bar(data[[i]], i))
-      print(graph_camembert(data[[i]], i))
+      print(suppressWarnings(graph_en_bar(data[[i]], i)))
+      print(suppressWarnings(graph_camembert(data[[i]], i)))
       
       cat("\n\n***\n\n")
   }
@@ -60,7 +78,7 @@ for(i in names(data)) {
       cat("\n### Analyse de la variable : ", i, "(Date)", "\n\n")
     
       # Graphiques 
-      print(graph_courbe(data[[i]], i))
+      print(suppressWarnings(graph_courbe(data[[i]], i)))
       
       cat("\n\n***\n\n")
   }
@@ -72,7 +90,7 @@ for(i in names(data)) {
       stats <- summary(data[[i]])
       print(knitr::kable(t(as.matrix(stats)), caption = "Résumé statistique"))
       
-      print(graph_histogramme(data[[i]], i))
+      print(suppressWarnings(graph_histogramme(data[[i]], i)))
       
       cat("\n\n***\n\n")
   }
