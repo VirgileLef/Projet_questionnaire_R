@@ -5,18 +5,23 @@ date: "2025-12-01"
 output:
   html_document:
     df_print: paged
+  pdf_document:
+    pandoc_args: ["--quiet"] # Réduit les messages de Pandoc
+    extra_dependencies: ["booktabs", "tabularx", "caption"]
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE, results='asis', include=FALSE}
 # Chargement des bibliothèques
 library(tidyverse)
 library(viridis)
 library(knitr) 
 library(kableExtra)
 library(yaml)
+library(knitr)
+library(kableExtra)
 
 # 1. Chargement des données et configuration
-config <- yaml::read_yaml("input/config_questionnaire.yaml")
+config <- yaml::read_yaml("input/config.yaml")
 data <- read.csv2(
   file = config$files$input_data, 
   fileEncoding = config$files$encoding, 
@@ -57,20 +62,20 @@ source("script/Fonction_graph_camembert.R")
 
 ## Analyse univarié
 
-```{r, echo=FALSE, warning=FALSE, results='asis'}
+```{r analyse_boucle, echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
 for(i in names(data)) {
   
   # --- VARIABLES QUALITATIVES (Character) ---
   if(is.character(data[[i]])) {
-    cat("\n### Analyse de la variable : ", i, "\n\n")
+    cat("\n### Analyse de la variable : ", i, "(Character)", "\n\n")
     
-    # 1. Tableau d'effectifs agrandi
+    #  Tableau d'effectifs agrandi
     tab_eff <- tableau_d_effectif(data[[i]], i)
     print(knitr::kable(tab_eff))
     
     cat("\n")
     
-    # 2. Graphiques
+    #  Graphiques
     print(graph_en_bar(data[[i]], i))
     cat("\n\n")
     print(graph_camembert(data[[i]], i))
@@ -90,17 +95,22 @@ for(i in names(data)) {
   
   # --- VARIABLES NUMÉRIQUES ---
   if(is.numeric(data[[i]]) && !inherits(data[[i]], "Date")) {
-    cat("\n### Analyse de la variable : ", i, "(Numérique)", "\n\n")
+    cat("\n### Analyse de la variable : ", i, "(Numéric)", "\n\n")
     
-    # Résumé statistique agrandi
+    # Résumé statistique 
     stats <- as.data.frame(t(as.matrix(summary(data[[i]]))))
     
+    # kable choisira automatiquement le bon format (html ou latex) selon le bouton "Knit"
     print(
-      knitr::kable(stats, format = "latex", booktabs = TRUE, caption = "Résumé statistique") %>%
-      kable_styling(
-        latex_options = c("striped", "hold_position"),
-        font_size = 12
-      )
+          knitr::kable(stats, booktabs = TRUE, caption = "Résumé statistique") %>%
+            kable_styling(
+              bootstrap_options = c("striped", "hover"),
+              # "scale_down" force le tableau à s'adapter à la largeur de la page PDF
+              latex_options = c("striped", "hold_position", "scale_down"), 
+              # On remet FALSE pour le PDF pour éviter l'erreur de calcul LaTeX
+              full_width = !knitr::is_latex_output(), 
+              font_size = 10
+            )
     )
     
     cat("\n")
@@ -111,3 +121,4 @@ for(i in names(data)) {
   }
 }
 ```
+
