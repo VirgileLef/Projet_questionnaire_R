@@ -19,6 +19,8 @@ library(kableExtra)
 library(yaml)
 library(knitr)
 library(kableExtra)
+library(rmarkdown) 
+library(markdown) 
 
 # 1. Chargement des données et configuration
 config <- yaml::read_yaml("input/config.yaml")
@@ -67,11 +69,11 @@ for(i in names(data)) {
   
   # --- VARIABLES QUALITATIVES (Character) ---
   if(is.character(data[[i]])) {
-    cat("\n### Analyse de la variable : ", i, "(Character)", "\n\n")
+    cat("\n# Analyse de la variable : ", i, "(Character)", "\n\n")
     
     #  Tableau d'effectifs agrandi
     tab_eff <- tableau_d_effectif(data[[i]], i)
-    print(knitr::kable(tab_eff))
+    print(kable(tab_eff))
     
     cat("\n")
     
@@ -85,7 +87,7 @@ for(i in names(data)) {
   
   # --- VARIABLES TEMPORELLES (Date) ---
   if(inherits(data[[i]], "Date")) {
-    cat("\n### Analyse de la variable : ", i, "(Date)", "\n\n")
+    cat("\n# Analyse de la variable : ", i, "(Date)", "\n\n")
     
     # Affichage de la courbe (avec graduation 1 en 1 si modifiée dans la fonction)
     print(graph_courbe(data[[i]], i))
@@ -95,14 +97,14 @@ for(i in names(data)) {
   
   # --- VARIABLES NUMÉRIQUES ---
   if(is.numeric(data[[i]]) && !inherits(data[[i]], "Date")) {
-    cat("\n### Analyse de la variable : ", i, "(Numéric)", "\n\n")
+    cat("\n# Analyse de la variable : ", i, "(Numéric)", "\n\n")
     
     # Résumé statistique 
     stats <- as.data.frame(t(as.matrix(summary(data[[i]]))))
     
     # kable choisira automatiquement le bon format (html ou latex) selon le bouton "Knit"
     print(
-          knitr::kable(stats, booktabs = TRUE, caption = "Résumé statistique") %>%
+          kable(stats, booktabs = TRUE, caption = "Résumé statistique") %>%
             kable_styling(
               bootstrap_options = c("striped", "hover"),
               # "scale_down" force le tableau à s'adapter à la largeur de la page PDF
