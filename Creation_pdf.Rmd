@@ -1,7 +1,7 @@
 ---
 title: "Analyse des réponses du questionnaire"
-author: "Virgile"
-date: "2025-12-01"
+author: "Etudiant BUT Science des données Pau"
+date: "24-01-2026"
 output:
   html_document:
     df_print: paged
@@ -22,7 +22,7 @@ library(kableExtra)
 library(rmarkdown) 
 library(markdown) 
 
-# 1. Chargement des données et configuration
+# Chargement des données et configuration
 config <- yaml::read_yaml("input/config.yaml")
 data <- read.csv2(
   file = config$files$input_data, 
@@ -66,59 +66,96 @@ source("script/Fonction_graph_camembert.R")
 
 ```{r analyse_boucle, echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
 for(i in names(data)) {
-  
+
   # --- VARIABLES QUALITATIVES (Character) ---
   if(is.character(data[[i]])) {
-    cat("\n# Analyse de la variable : ", i, "(Character)", "\n\n")
     
-    #  Tableau d'effectifs agrandi
-    tab_eff <- tableau_d_effectif(data[[i]], i)
-    print(kable(tab_eff))
+    # Gestion des NA selon la configuration
+    col_data <- data[[i]]
+    if (isTRUE(config$Parametrage$supprimer_NA)) {
+      temp_data <- col_data[!is.na(col_data) & col_data != ""]
+    } else {
+      temp_data <- ifelse(is.na(col_data) | col_data == "", "NA", col_data)
+    }
     
-    cat("\n")
+    cat("\n# Analyse de la variable : ", i, "\n\n")
     
-    #  Graphiques
-    print(graph_en_bar(data[[i]], i))
+    nombre_modalites <- length(unique(temp_data))
+    cat("Cette variable qualitative présente ", nombre_modalites, " modalités différentes.\n\n")
+    
+    tab_eff <- tableau_d_effectif(temp_data) 
+    tab_eff$data <- as.character(tab_eff$data) # <--- Force l'affichage de la modalité en charactères
+    tab_eff$Pourcentage <- (tab_eff$Effectifs / sum(tab_eff$Effectifs)) * 100
+    
+    # Regrouepement des modalités sur et sous représentés
+    moyenne_theo <- 100 / nrow(tab_eff)
+    sur_rep <- tab_eff %>% filter(Pourcentage > (moyenne_theo + 15))
+    sous_rep <- tab_eff %>% filter(Pourcentage < (moyenne_theo - 10))
+
+    cat("### Constat sur la répartition\n")
+    
+    if (nrow(sur_rep) > 0) {
+      cat("Les modalités **sur-représentées** sont : ", 
+          paste0("**", sur_rep$data, "** (", round(sur_rep$Pourcentage), "%)", collapse = ", "), ". ")
+    }
+    
+    if (nrow(sous_rep) > 0) {
+      cat("\n\nLes modalités **sous-représentées** sont : ", 
+          paste0("*", sous_rep$data, "* (", round(sous_rep$Pourcentage), "%)", collapse = ", "), ".")
+    }
+    
+    if(nrow(sur_rep) == 0 && nrow(sous_rep) == 0) {
+      cat("La répartition est équilibrée entre les ", nrow(tab_eff), " modalités.")
+    }
+
     cat("\n\n")
-    print(graph_camembert(data[[i]], i))
+    print(kable(tab_eff, digits = 1))
+    
+    # Graphiques
+    print(graph_en_bar(temp_data, i))
+    cat("\n\n")
+    print(graph_camembert(temp_data, i))
     
     cat("\n\n\\newpage\n\n")
   }
   
   # --- VARIABLES TEMPORELLES (Date) ---
   if(inherits(data[[i]], "Date")) {
+    
+    col_temp <- data[[i]]
+    if (isTRUE(config$Parametrage$supprimer_NA)) {
+      col_temp <- na.omit(col_temp)
+    }
+    
     cat("\n# Analyse de la variable : ", i, "(Date)", "\n\n")
-    
-    # Affichage de la courbe (avec graduation 1 en 1 si modifiée dans la fonction)
-    print(graph_courbe(data[[i]], i))
-    
+    print(graph_courbe(col_temp, i))
     cat("\n\n\\newpage\n\n")
   }
   
   # --- VARIABLES NUMÉRIQUES ---
   if(is.numeric(data[[i]]) && !inherits(data[[i]], "Date")) {
+    
+    col_temp <- data[[i]]
+    if (isTRUE(config$Parametrage$supprimer_NA)) {
+      col_temp <- na.omit(col_temp)
+    }
+    
     cat("\n# Analyse de la variable : ", i, "(Numéric)", "\n\n")
     
-    # Résumé statistique 
-    stats <- as.data.frame(t(as.matrix(summary(data[[i]]))))
-    
-    # kable choisira automatiquement le bon format (html ou latex) selon le bouton "Knit"
+    stats <- as.data.frame(t(as.matrix(summary(col_temp))))
+
     print(
-          kable(stats, booktabs = TRUE, caption = "Résumé statistique") %>%
-            kable_styling(
-              bootstrap_options = c("striped", "hover"),
-              # "scale_down" force le tableau à s'adapter à la largeur de la page PDF
-              latex_options = c("striped", "hold_position", "scale_down"), 
-              # On remet FALSE pour le PDF pour éviter l'erreur de calcul LaTeX
-              full_width = !knitr::is_latex_output(), 
-              font_size = 10
-            )
+      kable(stats, booktabs = TRUE, caption = "Résumé statistique") %>%
+        kable_styling(
+          bootstrap_options = c("striped", "hover"),
+          latex_options = c("striped", "hold_position", "scale_down"), 
+          full_width = !knitr::is_latex_output(), 
+          font_size = 10
+        )
     )
     
     cat("\n")
-    
-    print(graph_histogramme(data[[i]], i))
-    
+    print(graph_histogramme(col_temp, i))
     cat("\n\n\\newpage\n\n")
   }
 }
