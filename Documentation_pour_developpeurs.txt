@@ -1,0 +1,126 @@
+documentation pour les développeurs
+
+Description :
+Le projet consiste à développer des analyses statistiques univariées et bivariées automatiquement avec un rendu pdf des analyses générées. 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Structure du projet
+
+Projet_analyse/
+├── Creation_pdf.Rmd
+├── Input/
+│   ├── config_questionnaire.yaml
+│   └── donnees_brutes.csv
+├── Script/
+│   ├── Demarrage.R
+│   ├── Fonction_compt_des_rep.R
+│   ├── Fonction_detect_var_type.R
+│   ├── Fonction_graph_camembert.R
+│   ├── Fonction_graph_courbe.R
+│   ├── Fonction_graph_en_bar.R
+│   ├── Fonction_graph_histogramme.R
+│   └── Fonction_tableau_d_effectif.R
+├── output/
+│   └── rapport_final.pdf
+└── Documentation_pour_développeurs.txt
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Le fichier Rmarkdown Creation_pdf.Rmd permet de générer un pdf contenant les analyses réalisé par le script.
+Le premier chunk permet de charger le fichier de configuration et les fonctions utilisés dans le second chunk. C'est aussi dans ce chunk que le code opère un premier trie dans les données.
+
+Le second chunk est une boucle qui traite chacune des variables selon son type, et utilise les fonctions du dossier /Script pour générer des tableaux/graphique. Une autre logique de If permet de trier les phrases pré faites pour l'analyse.
+Le second chunk permet donc l'affichage global de pdf généré.
+
+Nous récupérons les noms des variables à l'aide de la boucle for
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Le dossier Input/ permet de stocker les fichiers de données qui seront utiliser pour l'analyse ainsi que les fichiers de configuration Yaml pour ces mêmes jeux de données.
+
+Il est composé des fichiers :
+config_questionnaire.yaml <-- fichier de configuration Yaml
+
+donnees_brutes.csv <-- données utilisés dans l'analyse
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Le dossier Script/ est un dossier composé des fonctions utilisées dans le code pour l'analyse du projet.
+Il est composé des fonctions ci-dessous :
+
+Fonction_compt_des_rep.R
+compt_des_rep(data)
+
+Rôle : Convertit les variables qualitatives en valeurs numériques.
+
+Fonctionnement : Demande comme unique arguments les données. Parcourt chaque colonne, si elle contient du texte, il trie les modalités par ordre alphabétique, leur attribue un rang (1, 2, 3...) et remplace le texte original par ce numéro.
+
+Retourne : Un data frame 
+--------------------------------
+
+Fonction_tableau_d_effectif.R
+tableau_d_effectif(data)
+
+Rôle : Génère un tableau d'effectifs.
+
+Fonctionnement : Demande comme unique arguments les données. Il compte le nombre d'occurrences pour chaque modalité d'une variable et présente le résultat sous forme de tableau avec deux colonnes : "data" et "Effectifs".
+
+Retourne : Un data frame de deux colonnes.
+--------------------------------
+
+Fonction_detect_var_type.R
+detect_var_type(data)
+
+La fonction "detect_var_type" permet de détecter le type de chacune des variables (cependant il n'est pas très efficace, il ne peut détecter que les variables string ou integer.
+
+Rôle : Identifie si chaque colonne d'un tableau est composée de texte (string), de nombres entiers (integer) ou d'autres types.
+
+Fonctionnement : Demande comme unique arguments les données. Il utilise une boucle for pour tester le type de chaque variable et renvoie un vecteur contenant le type des variables pour chaque colonne.
+
+Retourne : Un vecteur
+--------------------------------
+
+Fonction_graph_camembert.R
+graph_camembert(data,nom_variables)
+
+Rôle : Génère un diagramme circulaire.
+
+Fonctionnement : Demande deux arguments, les données et le nom de la variable. Il calcule automatiquement les proportions et place les étiquettes de pourcentage au centre de chaque section. Il utilise la palette de couleurs Viridis.
+
+Retourne : Un camembert ggplot2
+--------------------------------
+
+Fonction_graph_courbe.R
+graph_courbe(data,nom_variables)
+
+Rôle : Génère une courbe.
+
+Fonctionnement : Demande deux arguments, les données et le nom de la variable. Il adapte l'axe des abscisses selon si la donnée est une date, un nombre ou du texte. Il marque chaque observation avec un point sur la courbe.
+
+Retourne : Une courbe ggplot2
+--------------------------------
+
+Fonction_graph_en_bar.R
+graph_en_bar(data,nom_variables)
+
+Rôle : Crée un diagramme en barres.
+
+Fonctionnement : Demande deux arguments, les données et le nom de la variable.  Il incline les étiquettes de l'axe des abscisses à 45 degrés pour éviter les chevauchent.
+
+Retourne : Un graphique en bar ggplot2
+
+--------------------------------
+Fonction_graph_histogramme.R
+graph_histogramme(data,nom_variables)
+
+Rôle : Crée un histogramme.
+
+Fonctionnement : Demande deux arguments, les données et le nom de la variable. Il regroupe les valeurs par intervalles (dans ce code par des tranches de 5 via binwidth = 5).
+
+Retourne : Un histogramme ggplot2
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+

@@ -1,0 +1,29 @@
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Préparation des données
+Avant de générer votre rapport il vous faudra configurer votre analyse.
+
+Pour cela ouvrez le fichier config.yaml.
+Une fois ouvert, allez dans le 1er bl
+oc de code nommé "files" et paramétrez dans :
+  input_data <-- mettez entre guillemets le chemin d'accès du fichier du jeu de données que vous voulez utiliser pour l'analyse
+  output <-- mettez entre guillemets le chemin d'accès du dossier où vous voulez recevoir le rapport généré avec les résultats de l'analyse
+  encoding <-- mettez entre guillemets l'encodage du fichier de votre jeu de données (exemple: UTF-8, ISO-8859-1, … , etc)
+  separator <-- mettez entre guillemets le séparateur du fichier de votre jeu de données (; ou ,)
+  dec <-- mettez entre guillemets la notation décimal de votre jeu de données (. ou ,)
+
+Dans le 2ème bloc nommé "report" paramétrez dans :
+  title <-- mettez entre guillemets le titre souhaité de votre rapport
+
+Ensuite, dans le 3ème bloc nommé "Parametrage" paramétrez dans :
+  correlation <-- mettez entre guillemets le taux de corrélation minimum pour voir apparaître les analyses bivariées dans le rapport final.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Génération du rapport
+Pour obtenir votre analyse :
+
+Ouvrez le fichier Creation_pdf.Rmd.
+
+Cliquez sur le bouton "Knit" dans votre interface Rsudio puis sélectionner le type de fichier que vous voulez dans le menu dérouler (HTML ou PDF).
+
+Après un certain temps selon la taille de vos données, le fichier final nommé "Creation_final.pdf" sera disponible dans le projet Rstudio ou au chemin d'accès .
