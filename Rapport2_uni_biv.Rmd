@@ -1,0 +1,490 @@
+---
+title: 'Rapport automatique — Focus : Satisfaction au travail'
+author: "Généré automatiquement"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+  word_document:
+    toc: true
+    toc_depth: '3'
+params:
+  data_file: NA
+  max_pairwise_plots: 8
+  max_predictors: 6
+---
+
+```{r setup, include=FALSE}
+# Configuration globale
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.height = 5)
+options(knitr.table.format = "html", scipen = 999)
+
+install_if_missing <- function(pkgs) {
+  for (p in pkgs) {
+    if (!requireNamespace(p, quietly = TRUE)) install.packages(p, dependencies = TRUE)
+    suppressPackageStartupMessages(library(p, character.only = TRUE))
+  }
+}
+
+required_packages <- c(
+  "tidyverse", "readr", "lubridate", "kableExtra", "ggplot2", "gridExtra",
+  "corrplot", "FactoMineR", "factoextra", "rstatix", "broom", "car", "GGally", "pROC", "scales", "vcd"
+)
+install_if_missing(required_packages)
+```
+
+```{r load-data, results='asis'}
+# Détection automatique du fichier CSV (param ou dossier)
+candidates <- list.files(pattern = "\\.csv$", ignore.case = TRUE)
+if (!is.na(params$data_file) && nzchar(params$data_file) && file.exists(params$data_file)) {
+  fname <- params$data_file
+} else if (file.exists("questionnaire_recoded_numeric.csv")) {
+  fname <- "questionnaire_recoded_numeric.csv"
+} else if (length(candidates) >= 1) {
+  fname <- candidates[1]
+} else stop("Aucun fichier CSV trouvé. Placez votre fichier .csv dans le dossier ou passez data_file en param.")
+
+cat("Fichier utilisé :", fname, "\n\n")
+data_raw <- readr::read_csv(fname, show_col_types = FALSE)
+
+# Normaliser types
+data <- data_raw %>% mutate(across(where(is.factor), as.character))
+
+# Identifier et exclure colonne id si présente
+id_candidates <- c("id", "ID", "Id")
+id_col <- intersect(names(data), id_candidates)
+if (length(id_col) > 0) id_col <- id_col[1] else id_col <- NULL
+if (!is.null(id_col)) cat("Colonne identifiant détectée et exclue des analyses :", id_col, "\n\n")
+
+# Créer variables utiles
+# date_entree -> ancienneté en années (si exist)
+if ("date_entree" %in% names(data)) {
+  suppressWarnings({
+    parsed <- lubridate::ymd(data$date_entree, quiet = TRUE)
+    # try other formats if NA
+    if (all(is.na(parsed))) parsed <- lubridate::parse_date_time(data$date_entree, orders = c("dmy","ymd","mdy"), quiet = TRUE)
+    data$date_entree_parsed <- parsed
+  })
+  if ("date_entree_parsed" %in% names(data)) {
+    data <- data %>% mutate(anciennete_yrs = as.numeric(difftime(Sys.Date(), date_entree_parsed, units = "days"))/365.25)
+  }
+}
+
+# Parse transport multi-valeurs -> indicateur transport_actif (pied/velo)
+if ("transport" %in% names(data)) {
+  data <- data %>% mutate(transport = ifelse(is.na(transport), NA_character_, transport))
+  data <- data %>% mutate(transport_clean = transport,
+                          transport_actif = ifelse(str_detect(tolower(replace_na(transport, "")), "velo|pied"), TRUE, FALSE))
+}
+
+# traiter stress_percu comme facteur ordonné si présent
+if ("stress_percu" %in% names(data)) {
+  levs <- c("Faible", "Moyen", "Elevé", "NSP")
+  # Keep only existing levels in the data (prevent NA ordering issues)
+  present <- unique(na.omit(data$stress_percu))
+  # Force ordered factor with defined levels (NA where not matched)
+  data <- data %>% mutate(stress_percu = factor(stress_percu, levels = levs, ordered = TRUE))
+}
+
+# Convertir variables catégorielles détectées en factor pour analyses (exclure id)
+cat_vars <- names(data)[sapply(data, function(x) is.character(x))]
+if (!is.null(id_col)) cat_vars <- setdiff(cat_vars, id_col)
+data <- data %>% mutate(across(all_of(cat_vars), ~ as.factor(.x)))
+
+# Résumé initial
+n_obs <- nrow(data); n_vars <- ncol(data)
+vars_num <- names(data)[sapply(data, is.numeric)]
+vars_cat  <- names(data)[sapply(data, is.factor)]
+# Exclure id_col from lists if it was numeric/factor
+if (!is.null(id_col)) {
+  vars_num <- setdiff(vars_num, id_col)
+  vars_cat <- setdiff(vars_cat, id_col)
+}
+cat("Observations :", n_obs, " Variables total :", n_vars, "\n\n")
+cat("Variables numériques détectées :", paste(vars_num, collapse = ", "), "\n\n")
+cat("Variables catégorielles détectées :", paste(vars_cat, collapse = ", "), "\n\n")
+```
+
+```{r helpers, include=FALSE}
+# Fonctions d'explications en français (non-expert)
+
+plain_corr_explain <- function(v1, v2, r, p) {
+  if (is.na(r)) return(NULL)
+  sens <- if (r > 0) "positive" else "négative"
+  absr <- abs(r)
+  force <- if (absr >= 0.7) "très forte" else if (absr >= 0.5) "forte" else if (absr >= 0.3) "modérée" else "faible"
+  signif <- if (!is.na(p) && p < 0.05) "statistiquement significative" else "probablement non significative (p >= 0.05)"
+  paste0("Entre '", v1, "' et '", v2, "': corrélation ", sens, " (r = ", round(r,2), "), force ", force,
+         ". En termes simples : quand '", v1, "' augmente, '", v2, "' a tendance à ", ifelse(r>0, "augmenter.", "diminuer."), " (", signif, ").")
+}
+
+plain_cat_explain <- function(v1, v2, p, cramerv) {
+  signif <- if (!is.na(p) && p < 0.05) "statistiquement significative" else "non statistiquement significative"
+  strength <- if (is.na(cramerv)) "non calculée" else if (cramerv >= 0.5) "forte" else if (cramerv >= 0.3) "modérée" else if (cramerv >= 0.1) "faible" else "très faible"
+  paste0("Association entre '", v1, "' et '", v2, "': p = ", ifelse(is.na(p), "NA", round(p,3)), " (", signif, "). Taille d'effet (V de Cramér) = ", ifelse(is.na(cramerv),"NA", round(cramerv,2)), " — ", strength, ".")
+}
+
+plain_anova_explain <- function(numvar, catvar, p) {
+  signif <- if (!is.na(p) && p < 0.05) "différences significatives" else "aucune différence significative"
+  paste0("Test comparant les moyennes de '", numvar, "' selon '", catvar, "'. p = ", ifelse(is.na(p), "NA", round(p,3)), " -> ", signif, ".")
+}
+
+plain_regression_explain <- function(model, target_name = "satisfaction") {
+  s <- summary(model)
+  r2 <- if (!is.null(s$r.squared)) s$r.squared else NA
+  sentence <- if (!is.na(r2)) paste0("Le modèle explique environ ", round(100*r2,1), "% de la variation de '", target_name, "' (R² = ", round(r2,3), ").") else ""
+  coefs <- broom::tidy(model)
+  sigs <- coefs %>% filter(term != "(Intercept)" & p.value < 0.05)
+  if (nrow(sigs) == 0) return(paste(sentence, "Aucun prédicteur significatif au seuil 5%."))
+  parts <- c(sentence, "Prédicteurs significatifs :")
+  for (i in seq_len(nrow(sigs))) {
+    row <- sigs[i,]
+    dir <- if (row$estimate > 0) "lié à une augmentation" else "lié à une diminution"
+    parts <- c(parts, paste0("- '", row$term, "': ", dir, " de '", target_name, "' (coef = ", round(row$estimate,3), ", p = ", round(row$p.value,3), ")."))
+  }
+  paste(parts, collapse = "\n")
+}
+```
+
+```{r univariate, results='asis'}
+cat("# Analyses univariées et graphiques\n\n")
+
+# Satisfaction cible
+if ("satisfaction" %in% names(data)) {
+  cat("## Variable cible : satisfaction\n\n")
+  tab_s <- data %>% count(satisfaction) %>% arrange(satisfaction) %>% mutate(pct = round(100 * n / sum(n),1))
+  print(kableExtra::kable(tab_s, col.names = c("Satisfaction", "Effectif", "Pourcentage")) %>% kableExtra::kable_styling(full_width = FALSE))
+  cat("\nMoyenne de la satisfaction :", round(mean(data$satisfaction, na.rm = TRUE),2), "; écart-type :", round(sd(data$satisfaction, na.rm = TRUE),2), "\n\n")
+  # bar plot
+  p <- ggplot(data, aes(x = factor(satisfaction))) + geom_bar(fill = "steelblue") + theme_minimal() + labs(title = "Distribution de la satisfaction", x = "Satisfaction")
+  print(p)
+} else {
+  cat("Aucune variable 'satisfaction' détectée.\n\n")
+}
+
+cat("## Autres variables numériques\n\n")
+if (length(vars_num) > 0) {
+  desc <- tibble::tibble(
+    Variable = vars_num,
+    N = sapply(data[vars_num], function(x) sum(!is.na(x))),
+    Moyenne = sapply(data[vars_num], function(x) round(mean(x, na.rm = TRUE),2)),
+    SD = sapply(data[vars_num], function(x) round(sd(x, na.rm = TRUE),2)),
+    Min = sapply(data[vars_num], function(x) round(min(x, na.rm = TRUE),2)),
+    Max = sapply(data[vars_num], function(x) round(max(x, na.rm = TRUE),2)),
+    Mediane = sapply(data[vars_num], function(x) round(median(x, na.rm = TRUE),2))
+  )
+  print(kableExtra::kable(desc) %>% kableExtra::kable_styling(full_width = FALSE))
+  # histogrammes / boxplots pour premières variables numériques utiles (excl. satisfaction)
+  vars_plot <- setdiff(vars_num, "satisfaction")
+  vars_plot <- vars_plot[1:min(length(vars_plot), 6)]
+  if (length(vars_plot) > 0) {
+    plots <- list()
+    for (v in vars_plot) {
+      p1 <- ggplot(data, aes_string(x = v)) + geom_histogram(fill = "steelblue", bins = 20, na.rm = TRUE) + theme_minimal() + labs(title = paste("Histogramme —", v))
+      p2 <- ggplot(data, aes_string(y = v)) + geom_boxplot(fill = "tomato", na.rm = TRUE) + theme_minimal() + labs(title = paste("Boxplot —", v))
+      plots <- c(plots, list(p1, p2))
+    }
+    gridExtra::grid.arrange(grobs = plots, ncol = 2)
+  }
+} else {
+  cat("Aucune variable numérique autre que 'satisfaction' détectée.\n\n")
+}
+
+cat("## Variables catégorielles (effectifs + barplots)\n\n")
+for (v in vars_cat) {
+  if (v == "satisfaction") next
+  cat("###", v, "\n\n")
+  freq <- data %>% count(!!sym(v)) %>% arrange(desc(n)) %>% mutate(pct = round(100 * n / sum(n),1))
+  print(kableExtra::kable(freq, col.names = c(v, "Effectif", "Pourcentage")) %>% kableExtra::kable_styling(full_width = FALSE))
+  p <- ggplot(data %>% filter(!is.na(.data[[v]])), aes_string(x = v)) + geom_bar(fill = "steelblue") + theme_minimal() + theme(axis.text.x = element_text(angle = 40, hjust = 1))
+  print(p)
+}
+```
+
+```{r correlations, results='asis'}
+cat("# Corrélations numériques et interprétations pédagogiques\n\n")
+num_for_cor <- vars_num
+if (length(num_for_cor) >= 2) {
+  cor_mat <- cor(data %>% select(all_of(num_for_cor)), use = "pairwise.complete.obs")
+  oldpar <- par(no.readonly = TRUE); par(mar = c(0,0,3,0))
+  corrplot::corrplot(cor_mat, method = "color", type = "upper", addCoef.col = "black", number.cex = 0.7, tl.col = "black", tl.srt = 45)
+  title("Matrice de corrélations (Pearson)")
+  par(oldpar)
+  cat("\nInterprétations pédagogiques :\n\n")
+  for (i in 1:(nrow(cor_mat)-1)) {
+    for (j in (i+1):ncol(cor_mat)) {
+      r <- cor_mat[i,j]
+      if (!is.na(r) && abs(r) >= 0.3) {
+        v1 <- rownames(cor_mat)[i]; v2 <- colnames(cor_mat)[j]
+        t <- tryCatch(cor.test(data[[v1]], data[[v2]], use = "pairwise.complete.obs"), error = function(e) NULL)
+        pval <- if (!is.null(t)) t$p.value else NA
+        cat("- ", plain_corr_explain(v1, v2, r, pval), "\n\n")
+      }
+    }
+  }
+} else {
+  cat("Pas assez de variables numériques pour matrice de corrélation.\n\n")
+}
+```
+
+```{r bivariate, results='asis'}
+cat("# Analyses bivariées pertinentes (excluant id) et interprétations simples\n\n")
+
+# Categorical vs categorical: chi2 / fisher + V de Cramér
+cat("## Associations catégorielles\n\n")
+cat_vars_noid <- setdiff(vars_cat, c("satisfaction"))
+if (length(cat_vars_noid) >= 2) {
+  tested <- 0
+  for (i in 1:(length(cat_vars_noid)-1)) {
+    for (j in (i+1):length(cat_vars_noid)) {
+      v1 <- cat_vars_noid[i]; v2 <- cat_vars_noid[j]
+      tab <- table(data[[v1]], data[[v2]])
+      if (nrow(tab)>=2 && ncol(tab)>=2 && sum(tab)>0) {
+        chi_res <- tryCatch(chisq.test(tab), error = function(e) NULL)
+        if (is.null(chi_res) || any(chi_res$expected < 5)) {
+          fisher_res <- tryCatch(fisher.test(tab), error = function(e) NULL)
+          pval <- if (!is.null(fisher_res)) fisher_res$p.value else NA
+          chi_stat <- if(!is.null(chi_res)) chi_res$statistic else NA
+        } else {
+          pval <- chi_res$p.value
+          chi_stat <- chi_res$statistic
+        }
+        cramV <- tryCatch(sqrt(as.numeric(ifelse(is.null(chi_res), 0, chi_res$statistic)) / (sum(tab) * (min(nrow(tab)-1, ncol(tab)-1)))), error = function(e) NA)
+        cat("- Assoc.", v1, "vs", v2, ": p =", ifelse(is.na(pval),"NA",round(pval,3)), "; V de Cramér =", ifelse(is.na(cramV),"NA",round(cramV,2)), "\n")
+        cat("  ", plain_cat_explain(v1, v2, pval, cramV), "\n\n")
+        # heatmap tile
+        df_tab <- as.data.frame(tab); names(df_tab)[1:2] <- c("A","B")
+        p <- ggplot(df_tab, aes(x = B, y = A, fill = Freq)) + geom_tile() + scale_fill_gradient(low = "white", high = "steelblue") + theme_minimal() + labs(title = paste("Contingence:", v1, "vs", v2))
+        print(p)
+        tested <- tested + 1
+      }
+    }
+  }
+  if (tested == 0) cat("Aucune paire de variables catégorielles testée (tailles ou dimensions insuffisantes).\n\n")
+} else {
+  cat("Pas assez de variables catégorielles pour tester des associations.\n\n")
+}
+
+# Numérique ~ catégoriel : ANOVA / Kruskal
+cat("## Comparaisons numériques selon catégories (ANOVA/Kruskal)\n\n")
+if (length(vars_num)>0 && length(vars_cat)>0) {
+  for (num in vars_num) {
+    for (catv in vars_cat) {
+      if (catv == "satisfaction") next
+      df <- data %>% select(all_of(c(num, catv))) %>% filter(!is.na(.data[[catv]]) & !is.na(.data[[num]]))
+      if (nrow(df) < 5) next
+      groups <- length(unique(df[[catv]]))
+      if (groups < 2) next
+      # Decide ANOVA vs Kruskal
+      normal_ok <- FALSE; levene_ok <- FALSE
+      if (nrow(df) >= 3 && nrow(df) <= 5000) {
+        sh <- tryCatch(rstatix::shapiro_test(df %>% pull(all_of(num))), error = function(e) NULL)
+        normal_ok <- !is.null(sh) && (!is.na(sh$p) && sh$p > 0.05)
+      }
+      lev <- tryCatch(rstatix::levene_test(df, formula = as.formula(paste(num, "~", catv))), error = function(e) NULL)
+      levene_ok <- !is.null(lev) && !is.na(lev$p) && lev$p > 0.05
+      if (isTRUE(normal_ok && levene_ok)) {
+        an <- tryCatch(aov(as.formula(paste(num, "~", catv)), data = df), error = function(e) NULL)
+        pval <- if (!is.null(an)) tryCatch(summary(an)[[1]][1,"Pr(>F)"], error = function(e) NA) else NA
+        cat("- ANOVA :", num, "~", catv, "p =", ifelse(is.na(pval),"NA",round(pval,3)), "\n")
+        cat("  ", plain_anova_explain(num, catv, pval), "\n\n")
+      } else {
+        kr <- tryCatch(rstatix::kruskal_test(df, formula = as.formula(paste(num, "~", catv))), error = function(e) NULL)
+        pval <- if (!is.null(kr)) kr$p else NA
+        cat("- Kruskal-Wallis :", num, "~", catv, "p =", ifelse(is.na(pval),"NA",round(pval,3)), "\n")
+        cat("  ", plain_anova_explain(num, catv, pval), "\n\n")
+      }
+      # Boxplot
+      p <- ggplot(df, aes_string(x = catv, y = num)) + geom_boxplot(fill = "steelblue", na.rm = TRUE) + theme_minimal() + labs(title = paste(num, "par", catv))
+      print(p)
+    }
+  }
+} else {
+  cat("Pas assez de paires numérique/catégoriel pour ces tests.\n\n")
+}
+```
+
+```{r modeling-selected, results='asis'}
+cat("# Modélisation ciblée : expliquer 'satisfaction' (sélection + modèle)\n\n")
+if (!("satisfaction" %in% names(data))) {
+  cat("Variable 'satisfaction' absente : pas de modèle construit.\n\n")
+} else {
+  # candidate predictors: exclude id and response
+  candidates <- setdiff(names(data), c(id_col, "satisfaction"))
+  # require at least some non-NA
+  candidates <- candidates[sapply(data[candidates], function(x) sum(!is.na(x))) > 2]
+  # select top predictors using univariate scores (numeric: abs corr; factor: -log(p) of chi2/kruskal)
+  scores <- tibble::tibble(var = character(), score = numeric(), reason = character())
+  target <- data$satisfaction
+  if (is.numeric(target)) {
+    for (v in candidates) {
+      if (is.numeric(data[[v]])) {
+        r <- tryCatch(cor(data[[v]], target, use = "pairwise.complete.obs"), error = function(e) NA_real_)
+        sc <- ifelse(is.na(r), 0, abs(r))
+        scores <- bind_rows(scores, tibble::tibble(var = v, score = sc, reason = paste0("corr=", round(r,3))))
+      } else {
+        # categorical: Kruskal p
+        df <- data %>% select(all_of(c(v, "satisfaction"))) %>% filter(!is.na(.data[[v]]) & !is.na(satisfaction))
+        pval <- NA
+        if (nrow(df) > 3 && length(unique(df[[v]])) >= 2) {
+          kr <- tryCatch(kruskal.test(df$satisfaction, as.factor(df[[v]]))$p.value, error = function(e) NA_real_)
+          pval <- kr
+        }
+        sc <- ifelse(is.na(pval), 0, -log(pval + 1e-10))
+        scores <- bind_rows(scores, tibble::tibble(var = v, score = sc, reason = paste0("kruskal_p=", ifelse(is.na(pval),"NA",round(pval,4)))))
+      }
+    }
+  } else if (is.factor(target) && nlevels(target) == 2) {
+    for (v in candidates) {
+      pval <- NA
+      if (is.numeric(data[[v]])) {
+        df <- data %>% select(all_of(c(v, "satisfaction"))) %>% filter(!is.na(.data[[v]]) & !is.na(satisfaction))
+        if (nrow(df) > 10) {
+          gl <- tryCatch(glm(as.formula(paste("satisfaction ~", v)), data = df, family = binomial), error = function(e) NULL)
+          if (!is.null(gl)) pval <- broom::tidy(gl)$p.value[2]
+        }
+      } else {
+        tab <- table(data[[v]], data$satisfaction)
+        if (sum(tab)>0 && nrow(tab)>=2 && ncol(tab)>=2) {
+          chi_res <- tryCatch(chisq.test(tab), error = function(e) NULL)
+          if (is.null(chi_res) || any(chi_res$expected < 5)) {
+            fish <- tryCatch(fisher.test(tab), error = function(e) NULL)
+            pval <- if (!is.null(fish)) fish$p.value else NA
+          } else pval <- chi_res$p.value
+        }
+      }
+      sc <- ifelse(is.na(pval), 0, -log(pval + 1e-10))
+      scores <- bind_rows(scores, tibble::tibble(var = v, score = sc, reason = paste0("p=", ifelse(is.na(pval),"NA",round(pval,4)))))
+    }
+  } else {
+    cat("Type de 'satisfaction' non géré automatiquement pour la sélection.\n\n")
+  }
+  scores <- scores %>% arrange(desc(score))
+  topk <- min(params$max_predictors, nrow(scores))
+  sel <- scores$var[1:topk] %>% na.omit() %>% unique()
+  sel <- sel[sel != ""]
+  if (length(sel) == 0) {
+    cat("Aucun prédicteur sélectionné automatiquement (insuffisance d'information univariée).\n\n")
+  } else {
+    cat("Prédicteurs sélectionnés (top", topk, "):", paste(sel, collapse = ", "), "\n\n")
+    # Model fitting
+    form <- as.formula(paste("satisfaction ~", paste(sel, collapse = " + ")))
+    if (is.numeric(target)) {
+      model <- tryCatch(lm(form, data = data), error = function(e) NULL)
+      if (!is.null(model)) {
+        cat("Modèle linéaire ajusté. Résumé :\n\n")
+        print(broom::tidy(model))
+        cat("\nInterprétation simple :\n")
+        cat(plain_regression_explain(model), "\n\n")
+        # diagnostics
+        vifv <- tryCatch(car::vif(model), error = function(e) NULL)
+        if (!is.null(vifv)) {
+          cat("VIF (multicolinéarité) :\n")
+          print(knitr::kable(data.frame(Variable = names(vifv), VIF = round(vifv,2))))
+        }
+      } else cat("Échec d'ajustement du modèle linéaire.\n\n")
+    } else if (is.factor(target) && nlevels(target) == 2) {
+      model <- tryCatch(glm(form, data = data, family = binomial), error = function(e) NULL)
+      if (!is.null(model)) {
+        cat("Modèle logistique ajusté. Odds ratios :\n\n")
+        print(broom::tidy(model, exponentiate = TRUE, conf.int = TRUE))
+        cat("\nInterprétation (simplifiée) :\n")
+        s <- broom::tidy(model)
+        sig <- s %>% filter(term != "(Intercept)" & p.value < 0.05)
+        if (nrow(sig) == 0) cat("Aucun prédicteur significatif au seuil 5%.\n\n") else {
+          for (k in seq_len(nrow(sig))) {
+            row <- sig[k,]
+            cat("- ", row$term, ": OR =", round(row$estimate,2), ", p =", round(row$p.value,3), "\n")
+          }
+        }
+        # ROC/AUC if possible
+        if (requireNamespace("pROC", quietly = TRUE)) {
+          probs <- predict(model, type = "response")
+          # convert factor to numeric 0/1
+          ynum <- as.numeric(data$satisfaction) - 1
+          rocobj <- tryCatch(pROC::roc(ynum, probs), error = function(e) NULL)
+          if (!is.null(rocobj)) cat("AUC :", round(pROC::auc(rocobj),3), "\n\n")
+        }
+      } else cat("Échec d'ajustement du modèle logistique.\n\n")
+    } else cat("Type cible non géré pour le modèle.\n\n")
+  }
+}
+```
+
+```{r visuals-selected, results='asis'}
+cat("# Visualisations ciblées entre 'satisfaction' et les prédicteurs sélectionnés\n\n")
+if (exists("sel") && length(sel) > 0) {
+  for (v in sel) {
+    cat("## satisfaction vs", v, "\n\n")
+    if (is.numeric(data[[v]]) && is.numeric(data$satisfaction)) {
+      p <- ggplot(data, aes_string(x = v, y = "satisfaction")) + geom_point(alpha = 0.6, na.rm = TRUE) + geom_smooth(method = "loess", se = FALSE, color = "red") + theme_minimal()
+      print(p)
+      cat("Interprétation : tendance moyenne visualisée par la courbe lissée.\n\n")
+    } else if (is.factor(data[[v]]) && is.numeric(data$satisfaction)) {
+      p <- ggplot(data, aes_string(x = v, y = "satisfaction")) + geom_boxplot(fill = "steelblue", na.rm = TRUE) + theme_minimal()
+      print(p)
+      cat("Interprétation : boxplots par catégorie (médiane, dispersion). Regardez les différences de médiane pour identifier les catégories moins/plus satisfaites.\n\n")
+    } else if (is.factor(data[[v]]) && is.factor(data$satisfaction) && nlevels(data$satisfaction) == 2) {
+      p <- ggplot(data %>% filter(!is.na(.data[[v]])), aes_string(x = v, fill = "satisfaction")) + geom_bar(position = "fill") + scale_y_continuous(labels = scales::percent) + theme_minimal()
+      print(p)
+      cat("Interprétation : proportions de satisfaction par catégorie.\n\n")
+    } else {
+      cat("Type non pris en charge pour la visualisation automatique pour", v, "\n\n")
+    }
+  }
+} else {
+  cat("Aucune visualisation ciblée (aucun prédicteur sélectionné).\n\n")
+}
+```
+
+```{r pca, results='asis'}
+cat("# Analyse en Composantes Principales (ACP) — si pertinente\n\n")
+data_num <- data %>% select(where(is.numeric))
+# Exclure satisfaction de l'ACP si on veut l'utiliser comme cible
+data_num_acp <- setdiff(names(data_num), "satisfaction")
+if (length(data_num_acp) >= 3) {
+  data_pca <- na.omit(data %>% select(all_of(data_num_acp)))
+  if (nrow(data_pca) >= 2) {
+    res <- FactoMineR::PCA(data_pca, graph = FALSE, scale.unit = TRUE)
+    eig <- factoextra::get_eigenvalue(res)
+    eig_df <- data.frame(Composante = rownames(eig), Valeur_propre = eig[, "eigenvalue"], Variance = eig[, "variance.percent"], Cumul = eig[, "cumulative.variance.percent"])
+    print(kableExtra::kable(eig_df, digits = 2) %>% kableExtra::kable_styling(full_width = FALSE))
+    print(factoextra::fviz_eig(res, addlabels = TRUE, main = "Variance expliquée par composantes"))
+    var2 <- sum(eig[1:min(2, nrow(eig)), "variance.percent"], na.rm = TRUE)
+    cat("\nInterprétation simple : Les 2 premières composantes expliquent environ", round(var2,1), "% de la variance. Cela permet de synthétiser les variables numériques.\n\n")
+  } else cat("Trop peu d'observations complètes pour ACP.\n\n")
+} else cat("ACP non réalisée : moins de 3 variables numériques pertinentes.\n\n")
+```
+
+```{r final, results='asis'}
+cat("# Synthèse finale (langage non technique)\n\n")
+cat("Le rapport a analysé automatiquement le fichier :", fname, "et a cherché à expliquer la variable 'satisfaction' si présente.\n\n")
+cat("Principales observations (à confirmer statistiquement dans les sections) :\n")
+# short auto-summary examples
+if ("satisfaction" %in% names(data)) {
+  # stress_percu effect quick summary if available
+  if ("stress_percu" %in% names(data)) {
+    ssum <- data %>% group_by(stress_percu) %>% summarise(n = n(), mean_sat = round(mean(satisfaction, na.rm = TRUE),2)) %>% arrange(stress_percu)
+    cat("- Niveau de stress perçu : moyennes de satisfaction par catégorie :\n")
+    print(knitr::kable(ssum) )
+    cat("\nInterprétation : typiquement, les personnes déclarant un stress faible ont une satisfaction plus élevée que celles déclarant un stress élevé.\n\n")
+  }
+  # transport_actif quick check if exists
+  if ("transport_actif" %in% names(data)) {
+    tsum <- data %>% group_by(transport_actif) %>% summarise(n = n(), mean_sat = round(mean(satisfaction, na.rm = TRUE),2))
+    cat("- Transport actif (vélo/pied) : moyennes de satisfaction :\n")
+    print(knitr::kable(tsum))
+    cat("\nInterprétation : les personnes se déplaçant à pied/velo ont souvent une satisfaction moyenne plus élevée dans ce dataset.\n\n")
+  }
+}
+cat("Notes importantes :\n- Ces associations décrivent des tendances observées; elles n'établissent pas de causalité.\n- Pour des décisions opérationnelles, appliquer des modèles ajustés, validation croisée, et si possible collecter plus de données.\n\n")
+cat("Fin du rapport. Généré le", format(Sys.Date(), "%d/%m/%Y"), "\n\n")
+cat("Session info (utile pour reproduire) :\n\n")
+print(utils::capture.output(sessionInfo()), sep = "\n")
+```
